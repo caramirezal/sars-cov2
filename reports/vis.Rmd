@@ -1,0 +1,58 @@
+---
+title: "EDA on SARS COVID-19"
+author: "Health Data Science Unit"
+date: "3/24/2020"
+output: html_document
+---
+
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+```
+
+```{r}
+kim <- read.table(
+        'data/kim2015/GSE69405_PROCESSED_GENE_TPM_ALL.txt',
+        colClasses = 'character',
+        header = TRUE
+)
+gene_names <- kim$gene_name
+kim.mtx <- apply(kim[, 4:ncol(kim)], 2, as.numeric)
+rownames(kim.mtx) <- gene_names 
+rm(kim, gene_names)
+kim_seu <- CreateSeuratObject(
+        counts = kim.mtx, 
+        project = 'sars-cov2', 
+        min.cells = 5, 
+        min.features = 30, 
+        assay = 'RNA'
+)
+rm(kim.mtx)
+
+zilionis <- readMM('../data/zillionis2019/GSE127465_human_counts_normalized_54773x41861.mtx')
+row_names <- read.table('../data/zillionis2019/human_cell_metadata_54773x25.tsv', 
+                        header = TRUE, 
+                        quote = '', 
+                        colClasses = 'character', 
+                        sep = '\t'
+)
+row_names <- row_names$Barcode
+rownames(zilionis) <- row_names
+gene_names <- read_table('../data/zillionis2019/GSE127465_gene_names_human_41861.tsv', col_names = FALSE)
+colnames(zilionis) <- gene_names$X1
+rm(gene_names)
+zilionis <- t(zilionis)
+zilionis_seu <- CreateSeuratObject(
+        counts = zilionis, 
+        project = 'sars-cov2', 
+        assay = 'RNA', 
+        min.cells = 5, 
+        min.features = 30
+)
+```
+
+```{r}
+
+```
