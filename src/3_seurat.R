@@ -1,9 +1,32 @@
-## dependencies
+## Processing single cell data from PanglaoDB repository using Seurat
+## Bulk download can be done from here:
+## https://panglaodb.se/bulk.html
+
+#######################################################################################
+##                                                                                   ##
+##                      Initial settings                                             ##
+##                                                                                   ##
+#######################################################################################
+
+## Dependencies
 library(Seurat)
 library(miceadds)   ## for load.Rdata
 library(Matrix)
 
+## Setting data input
 
+##  path to github repository directory
+path2project <- '~/sc/sars-cov2/'     ## change in cluster
+## directory to save seurat objects
+panglaodb_seurat_dir <- '~/sc/sars-cov2/analyisis/panglaodb_seurat'
+
+#######################################################################################
+##                                                                                   ##
+##                     Auxiliary functions                                           ##
+##                                                                                   ##
+#######################################################################################
+
+## Seurat standard workflow
 st_workflow <- function(
         seurat_object,
         n_features = 3000,
@@ -23,74 +46,11 @@ st_workflow <- function(
         return(seurat.p)
 }
 
-path2project <- '~/sc/sars-cov2/'
-list.files(path2project)
-
-metadata <- read.table(paste0(path2project, 
-                              'data/panglaodb/PanglaoDB/data/metadata.txt'), 
-                       sep = ',')
-colnames(metadata) <- c('SRA_accession', 'SRS_accession',
-                        'Tissue_origin', 'scRNA-seq_protocol',
-                        'Species', 'Sequencing_instrument',
-                        'Number_of_expressed_genes', 'Median_number_of_expressed_genes',
-                        'Number_of_clusters_in_sample', 'is_tumor',
-                        'is_primary', 'is_cell_line')
-
-## selecting tissue cell types
-tissues <- c('lung', 'intestine')
-species <- grepl('Homo sapiens', metadata$Species)
-tissues.s <- grepl(paste(tissues, collapse = '|'), tolower(metadata$Tissue_origin))
-metadata.s <- metadata[tissues.s & species, ]
-dim(metadata.s)
-head(metadata.s)
-
-file.name <- paste0('var/www/html/SRA/SRA.final/',
-                    metadata.s$SRA_accession[[1]],
-                    '_',
-                    metadata.s$SRS_accession[[1]], 
-                    '.sparse.RData')
-
-tar.path <- '~/Downloads/panglaodb_bulk_x2EfwF.tar'
-dir.out <- '~/sc/sars-cov2/temp/'
-extract.comm <- paste('tar  -C ', dir.out,
-                       '-xvf', tar.path,
-                       file.name, sep = ' ')
-#system(extract.comm)
-
-load.Rdata(paste0(dir.out, file.name), objname = 'sparseMat')
-sample.seu <- CreateSeuratObject(
-        counts = sparseMat, 
-        project = 'sars-cov2', 
-        assay = 'RNA', 
-        min.cells = 30, 
-        min.features = 300 
-)
-
-## extract sparse matrices from panglaodb by providing sra and srs ids
-extract_panglaodb <- function(
-        sra, 
-        srs, 
-        tar.path = '~/Downloads/panglaodb_bulk_x2EfwF.tar',
-        dir.out = '~/sc/sars-cov2/temp/') {
-        if ( file.exists(tar.path) & 
-              dir.exists(dir.out) ) {
-                file.name <- paste0('var/www/html/SRA/SRA.final/',
-                                    sra,
-                                    '_',
-                                    srs, 
-                                    '.sparse.RData')
-                
-                cat('Executing: ', extract.comm, '\n')
-                extract.comm <- paste('tar  -C ', dir.out,
-                                      '-xvf', tar.path,
-                                      file.name, sep = ' ')
-                system(extract.comm)   
-        }
-}
-
 ## define seurat object
 define_seurat <- function(file.name, sample_name) {
         load.Rdata(file.name, objname = 'sparseMat')
+        colnames(sparseMat) <- paste0(sample_name, '-', 
+                                      colnames(sparseMat))
         sample.seu <- CreateSeuratObject(
                 counts = sparseMat, 
                 project = sample_name, 
@@ -101,31 +61,81 @@ define_seurat <- function(file.name, sample_name) {
         return(sample.seu)
 }
 
+#######################################################################################
+## loading metadata
+## Metadata can be obtained by cloning the pangladb repository:
+## https://github.com/oscar-franzen/PanglaoDB
+## Run 1_download_data.sh in order to get the metadata.txt file in the correct dir
+metadata <- read.table(paste0(path2project, 
+                              'data/panglaodb/PanglaoDB/data/metadata.txt'), 
+                       sep = ',', colClasses = 'character')
+colnames(metadata) <- c('SRA_accession', 'SRS_accession',
+                        'Tissue_origin', 'scRNA-seq_protocol',
+                        'Species', 'Sequencing_instrument',
+                        'Number_of_expressed_genes', 'Median_number_of_expressed_genes',
+                        'Number_of_clusters_in_sample', 'is_tumor',
+                        'is_primary', 'is_cell_line')
 
-#for (i in 1:nrow(metadata.s)) {
-#        extract_panglaodb(
-#                sra = metadata.s$SRA_accession[i],
-#                srs = metadata.s$SRS_accession[i]
-#        )
-#}
+#####################################################################################
+##                                                                                 ##
+##                 Transform GE matrix to seurat object                            ##
+##                                                                                 ##
+#####################################################################################
 
-path2sparse <- paste0(path2project, 'temp//var/www/html/SRA/SRA.final/')
-files <- list.files(path2sparse)
-files.path <- paste0(path2sparse, files)
-
-seurat.list <- list()
-for (i in 1:length(files.path)) {
-        seurat.list <- c(seurat.list, 
-                         define_seurat(files.path[i],
-                                     as.character(metadata.s$Tissue_origin[i]))
-                         )
+## **1. Records with no SRS ID were removed (30)**
+## **2. Only count matrices were kept (45 records given in RPKM were left)**
+## matrices to Seurat 
+for (i in 1:nrow(metadata)){
+        file.name <- paste0('var/www/html/SRA/SRA.final/',
+                            metadata$SRA_accession[i],
+                            '_',
+                            metadata$SRS_accession[i], 
+                            '.sparse.RData')
+        file.name.full <- paste0(path2project,
+                                 'temp/',         ## change this in cluster
+                                 file.name)
+        if (file.exists(file.name.full)) {
+                sample.seu <- define_seurat(
+                        file.name = file.name.full,
+                        sample_name = paste0(metadata$SRA_accession[i],
+                                             '_',
+                                             metadata$SRS_accession[i])
+                )
+                sample.seu$'SRA_accession' <- metadata$SRA_accession[i]
+                sample.seu$'SRS_accession' <- metadata$SRS_accession[i]
+                sample.seu$'Tissue_origin' <- metadata$Tissue_origin[i]
+                sample.seu$'scRNA_seq_protocol' <- metadata$`scRNA-seq_protocol`[i]
+                sample.seu$'Sequencing_instrument' <- metadata$Sequencing_instrument[i]
+                sample.seu$'Number_of_expressed_genes' <- metadata$Number_of_expressed_genes[i]
+                
+                cat('Finishing ', file.name, 'sparse to seurat conversion\n')
+                seurat.file <- paste0(panglaodb_seurat_dir, '/',
+                                      metadata$SRA_accession[i], 
+                                      '_', metadata$SRS_accession[i], 
+                                      '_seurat.rds')
+                cat('Saving file to ', seurat.file, '\n')
+                write_rds(x = sample.seu, path = seurat.file)
+        }
 }
-#seurat.list <- sapply(files.path, function(f) define_seurat(f))
-names(seurat.list) <- gsub('~/sc/sars-cov2/temp//var/www/html/SRA/SRA.final/',
-                           '', names(seurat.list))
-names(seurat.list) <- gsub('\\.sparse\\.RData',
-                           '', names(seurat.list))
 
+seurat.files <- list.files(panglaodb_seurat_dir)
+seurat.files.full <- paste0(panglaodb_seurat_dir, '/',seurat.files)
+seurat.list <- lapply(seurat.files.full, read_rds)
+
+
+## selecting tissue cell types
+#tissues <- c('lung', 'intestine')
+#species <- grepl('Homo sapiens', metadata$Species)
+#tissues.s <- grepl(paste(tissues, collapse = '|'), tolower(metadata$Tissue_origin))
+#metadata.s <- metadata[tissues.s & species, ]
+#dim(metadata.s)
+#head(metadata.s)
+
+#####################################################################################
+##                                                                                 ##
+##              Coembedding samples                                                ##
+##                                                                                 ##
+####################################################################################
 for (i in 1:length(seurat.list)) {
         seurat.list[[i]] <- NormalizeData(seurat.list[[i]], 
                                           verbose = FALSE)
@@ -134,6 +144,7 @@ for (i in 1:length(seurat.list)) {
                                                  nfeatures = 5000, verbose = FALSE)
 }
 
+## taking the intersection of variable features in all samples
 var_feat <- lapply(seurat.list, VariableFeatures)
 var_fea_int <- Reduce(intersect, var_feat)
 
@@ -145,4 +156,7 @@ merge.seu <- FindNeighbors(merge.seu, reduction = 'umap', dims = 1:2)
 merge.seu <- FindClusters(merge.seu, resolution = 0.05)
 DimPlot(merge.seu, group.by = 'seurat_clusters', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'orig.ident', reduction = 'umap')
+DimPlot(merge.seu, group.by = 'SRA_accession', reduction = 'umap')
+DimPlot(merge.seu, group.by = 'Tissue_origin', reduction = 'umap')
 FeaturePlot(merge.seu, features = 'ACE2-ENSG00000130234.10', reduction = 'umap')
+
