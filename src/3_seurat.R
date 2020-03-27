@@ -14,11 +14,10 @@ library(miceadds)   ## for load.Rdata
 library(Matrix)
 
 ## Setting data input
-
 ##  path to github repository directory
-path2project <- '~/sc/sars-cov2/'     ## change in cluster
+path2project <- '/media/ag-cherrmann/cramirez/sars-cov2/'     ## change in cluster
 ## directory to save seurat objects
-panglaodb_seurat_dir <- '~/sc/sars-cov2/analyisis/panglaodb_seurat'
+panglaodb_seurat_dir <- '/media/ag-cherrmann/cramirez/sars-cov2/analysis/panglaodb_seurat'
 
 #######################################################################################
 ##                                                                                   ##
@@ -92,8 +91,9 @@ for (i in 1:nrow(metadata)){
                             metadata$SRS_accession[i], 
                             '.sparse.RData')
         file.name.full <- paste0(path2project,
-                                 'temp/',         ## change this in cluster
+                                 '/data/',         ## change this in cluster
                                  file.name)
+        cat(file.name.full, '\n')
         if (file.exists(file.name.full)) {
                 sample.seu <- define_seurat(
                         file.name = file.name.full,
@@ -114,13 +114,14 @@ for (i in 1:nrow(metadata)){
                                       '_', metadata$SRS_accession[i], 
                                       '_seurat.rds')
                 cat('Saving file to ', seurat.file, '\n')
-                write_rds(x = sample.seu, path = seurat.file)
+                saveRDS(sample.seu, seurat.file)
         }
 }
 
-seurat.files <- list.files(panglaodb_seurat_dir)
-seurat.files.full <- paste0(panglaodb_seurat_dir, '/',seurat.files)
-seurat.list <- lapply(seurat.files.full, read_rds)
+## Reading seurat files into R
+#seurat.files <- list.files(panglaodb_seurat_dir)
+#seurat.files.full <- paste0(panglaodb_seurat_dir, '/', seurat.files)
+#seurat.list <- lapply(seurat.files.full, read_rds)
 
 
 ## selecting tissue cell types
@@ -136,13 +137,13 @@ seurat.list <- lapply(seurat.files.full, read_rds)
 ##              Coembedding samples                                                ##
 ##                                                                                 ##
 ####################################################################################
-for (i in 1:length(seurat.list)) {
-        seurat.list[[i]] <- NormalizeData(seurat.list[[i]], 
-                                          verbose = FALSE)
-        seurat.list[[i]] <- FindVariableFeatures(seurat.list[[i]], 
-                                                 selection.method = "vst", 
-                                                 nfeatures = 5000, verbose = FALSE)
-}
+#for (i in 1:length(seurat.list)) {
+#        seurat.list[[i]] <- NormalizeData(seurat.list[[i]], 
+#                                          verbose = FALSE)
+#        seurat.list[[i]] <- FindVariableFeatures(seurat.list[[i]], 
+#                                                 selection.method = "vst", 
+#                                                 nfeatures = 5000, verbose = FALSE)
+#}
 
 ## taking the intersection of variable features in all samples
 var_feat <- lapply(seurat.list, VariableFeatures)
