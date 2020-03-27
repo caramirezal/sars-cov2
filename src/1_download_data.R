@@ -1,4 +1,5 @@
 ## Downloading data
+library(R.utils)
 
 if ( ! dir.exists('data/kim2015/')) {
         dir.create('data/kim2015/')
@@ -6,3 +7,11 @@ if ( ! dir.exists('data/kim2015/')) {
         download.file(url, destfile = 'data/kim2015/GSE69405_PROCESSED_GENE_TPM_ALL.txt.gz')
 }
 
+if ( ! dir.exists('data/tenOever2020/') ) {
+        dir.create('data/tenOEver202')
+        url <- 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE147507&format=file&file=GSE147507%5FRawReadCounts%2Etsv%2Egz'
+        download.file(url, 'data/tenOEver202/GSE147507_RawReadCounts.tsv.gz')
+        gunzip('data/tenOEver202/GSE147507_RawReadCounts.tsv.gz',
+               destname = 'data/tenOEver202/GSE147507_RawReadCounts.tsv',
+               remove = FALSE)
+}
