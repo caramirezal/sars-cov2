@@ -12,6 +12,10 @@
 library(Seurat)
 library(miceadds)   ## for load.Rdata
 library(Matrix)
+library(tidyverse)
+#library(future)
+
+#plan("multiprocess", workers = 2)
 
 ## Setting data input
 ##  path to github repository directory
@@ -84,80 +88,120 @@ colnames(metadata) <- c('SRA_accession', 'SRS_accession',
 ## **1. Records with no SRS ID were removed (30)**
 ## **2. Only count matrices were kept (45 records given in RPKM were left)**
 ## matrices to Seurat 
-for (i in 1:nrow(metadata)){
-        file.name <- paste0('var/www/html/SRA/SRA.final/',
-                            metadata$SRA_accession[i],
-                            '_',
-                            metadata$SRS_accession[i], 
-                            '.sparse.RData')
-        file.name.full <- paste0(path2project,
-                                 '/data/',         ## change this in cluster
-                                 file.name)
-        cat(file.name.full, '\n')
-        if (file.exists(file.name.full)) {
-                sample.seu <- define_seurat(
-                        file.name = file.name.full,
-                        sample_name = paste0(metadata$SRA_accession[i],
-                                             '_',
-                                             metadata$SRS_accession[i])
-                )
-                sample.seu$'SRA_accession' <- metadata$SRA_accession[i]
-                sample.seu$'SRS_accession' <- metadata$SRS_accession[i]
-                sample.seu$'Tissue_origin' <- metadata$Tissue_origin[i]
-                sample.seu$'scRNA_seq_protocol' <- metadata$`scRNA-seq_protocol`[i]
-                sample.seu$'Sequencing_instrument' <- metadata$Sequencing_instrument[i]
-                sample.seu$'Number_of_expressed_genes' <- metadata$Number_of_expressed_genes[i]
-                
-                cat('Finishing ', file.name, 'sparse to seurat conversion\n')
-                seurat.file <- paste0(panglaodb_seurat_dir, '/',
-                                      metadata$SRA_accession[i], 
-                                      '_', metadata$SRS_accession[i], 
-                                      '_seurat.rds')
-                cat('Saving file to ', seurat.file, '\n')
-                saveRDS(sample.seu, seurat.file)
-        }
-}
+#for (i in 1:nrow(metadata)){
+#        file.name <- paste0('var/www/html/SRA/SRA.final/',
+#                            metadata$SRA_accession[i],
+#                            '_',
+#                            metadata$SRS_accession[i], 
+#                            '.sparse.RData')
+#        file.name.full <- paste0(path2project,
+#                                 '/data/',         ## change this in cluster
+#                                 file.name)
+#        cat(file.name.full, '\n')
+#        if (file.exists(file.name.full)) {
+#                sample.seu <- define_seurat(
+#                        file.name = file.name.full,
+#
+#                        sample_name = paste0(metadata$SRA_accession[i],
+#                                             '_',
+#                                             metadata$SRS_accession[i])
+#                )
+#                sample.seu$'SRA_accession' <- metadata$SRA_accession[i]
+#                sample.seu$'SRS_accession' <- metadata$SRS_accession[i]
+#                sample.seu$'Tissue_origin' <- metadata$Tissue_origin[i]
+#                sample.seu$'scRNA_seq_protocol' <- metadata$`scRNA-seq_protocol`[i]
+#                sample.seu$'Sequencing_instrument' <- metadata$Sequencing_instrument[i]
+#                sample.seu$'Number_of_expressed_genes' <- metadata$Number_of_expressed_genes[i]
+#                
+#                cat('Finishing ', file.name, 'sparse to seurat conversion\n')
+#                seurat.file <- paste0(panglaodb_seurat_dir, '/',
+#                                      metadata$SRA_accession[i], 
+#                                      '_', metadata$SRS_accession[i], 
+#                                      '_seurat.rds')
+#                cat('Saving file to ', seurat.file, '\n')
+#                saveRDS(sample.seu, seurat.file)
+#        }
+#}
 
-## Reading seurat files into R
-#seurat.files <- list.files(panglaodb_seurat_dir)
-#seurat.files.full <- paste0(panglaodb_seurat_dir, '/', seurat.files)
-#seurat.list <- lapply(seurat.files.full, read_rds)
+cat('Subsetting human profiles\n')
+species <- grepl('Homo sapiens', metadata$Species)
+tissue <- grepl('lung|kidney|colon|liver|oma', tolower(metadata$Tissue_origin))
+metadata.h <- metadata[species & tissue, ]
+dim(metadata.h)
+head(metadata.h)
 
-
-## selecting tissue cell types
-#tissues <- c('lung', 'intestine')
-#species <- grepl('Homo sapiens', metadata$Species)
-#tissues.s <- grepl(paste(tissues, collapse = '|'), tolower(metadata$Tissue_origin))
-#metadata.s <- metadata[tissues.s & species, ]
-#dim(metadata.s)
-#head(metadata.s)
+cat('Reading human datasets into list\n')
+#seurat.list <- list()
+#file.names <- c()
+#for (i in 1:nrow(metadata.h)){
+#        file.name <- paste0(metadata.h$SRA_accession[i],
+#                            '_',
+#                            metadata.h$SRS_accession[i], 
+#                            '_seurat.rds')
+#        file.names <- c(file.names, file.name)
+#        file.name.full <- paste0(path2project,
+#                                 'analysis/panglaodb_seurat/',         ## change in cluster
+#                                 file.name)
+#        if ( file.exists(file.name.full) ) {
+#            cat('Reading ', file.name.full, 'seurat file\n')
+#            sample.seu <- readRDS(file.name.full)
+#            seurat.list <- c(seurat.list, sample.seu)
+#        }
+#}
+#cat('Saving seurat object')
+seurat.list.path <- paste0(path2project, 'analysis/seurat.list.rds')
+#saveRDS(seurat.list, seurat.list.path)
 
 #####################################################################################
 ##                                                                                 ##
 ##              Coembedding samples                                                ##
 ##                                                                                 ##
 ####################################################################################
+#seurat.list <- read_rds(seurat.list.path)
+#cat('Processing seurat objects\n')
 #for (i in 1:length(seurat.list)) {
+#        cat('Normalizing', i, 'file\n')
 #        seurat.list[[i]] <- NormalizeData(seurat.list[[i]], 
-#                                          verbose = FALSE)
-#        seurat.list[[i]] <- FindVariableFeatures(seurat.list[[i]], 
-#                                                 selection.method = "vst", 
-#                                                 nfeatures = 5000, verbose = FALSE)
+#                                          verbose = T)
+#        #seurat.list[[i]] <- FindVariableFeatures(seurat.list[[i]], 
+#        #                                         selection.method = "vst", 
+#        #                                         nfeatures = 8000, verbose = T)
 #}
+#cat('Saving seurat object')
+seurat.list.path <- paste0(path2project, 'analysis/seurat.norm.list.rds')
+#saveRDS(seurat.list, seurat.list.path)
 
-## taking the intersection of variable features in all samples
-var_feat <- lapply(seurat.list, VariableFeatures)
-var_fea_int <- Reduce(intersect, var_feat)
 
-merge.seu <- merge(x= seurat.list[[1]], y = seurat.list[1:length(seurat.list)])
-merge.seu <- ScaleData(merge.seu, features = var_fea_int, do.scale=TRUE)
-merge.seu <- RunPCA(merge.seu, features = var_fea_int, verbose = FALSE)
+#cat('Taking the intersection of variable features in all samples')
+#var_feat <- lapply(seurat.list, VariableFeatures)
+#var_fea_int <- Reduce(intersect, var_feat)
+
+cat('Merging seurat objects\n')
+#merge.seu <- merge(x= seurat.list[[1]], y = seurat.list[2:length(seurat.list)])
+merge.rds <- paste0(path2project, '/analysis/panglaodb.merge.seu.rds')
+#saveRDS(merge.seu, merge.rds)
+
+
+cat('Processing merged seurat\n')
+merge.seu <- read_rds(merge.rds)
+merge.seu <- ScaleData(merge.seu, do.scale=TRUE)
+merge.seu <- FindVariableFeatures(merge.seu, 
+                                  selection.method = "vst", 
+                                  nfeatures = 1000, verbose = T)
+merge.seu <- RunPCA(merge.seu, verbose = FALSE)
 merge.seu <- RunUMAP(merge.seu, dims = 1:30, metric = 'cosine')
 merge.seu <- FindNeighbors(merge.seu, reduction = 'umap', dims = 1:2)
 merge.seu <- FindClusters(merge.seu, resolution = 0.05)
+merge.p.rds <- paste0(path2project, '/analysis/panglaodb.merge.seu.processed.rds')
+saveRDS(merge.seu, merge.p.rds)
+cat('Merged processed data saved to ', merge.p.rds, '\n')
+
+cat('Plotting figures\n')
+figures.pdf <- paste0(path2project, '/docs/figures.pdf')
+pdf(figures.pdf)
 DimPlot(merge.seu, group.by = 'seurat_clusters', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'orig.ident', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'SRA_accession', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'Tissue_origin', reduction = 'umap')
 FeaturePlot(merge.seu, features = 'ACE2-ENSG00000130234.10', reduction = 'umap')
-
+dev.off()
