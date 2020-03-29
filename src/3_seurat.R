@@ -79,6 +79,10 @@ colnames(metadata) <- c('SRA_accession', 'SRS_accession',
                         'Number_of_clusters_in_sample', 'is_tumor',
                         'is_primary', 'is_cell_line')
 
+
+write_rds(metadata, 
+         paste0(path2project, '/analysis/panglaoDB_metadata_full.rds'))
+
 #####################################################################################
 ##                                                                                 ##
 ##                 Transform GE matrix to seurat object                            ##
@@ -127,10 +131,10 @@ cat('Subsetting human profiles\n')
 species <- grepl('Homo sapiens', metadata$Species)
 tissue <- grepl('lung|kidney|colon|liver|oma', tolower(metadata$Tissue_origin))
 metadata.h <- metadata[species & tissue, ]
-dim(metadata.h)
-head(metadata.h)
+write_rds(metadata.h, 
+         paste0(path2project, '/analysis/panglaoDB_metadata_selected_tissues.rds'))
 
-cat('Reading human datasets into list\n')
+#cat('Reading human datasets into list\n')
 #seurat.list <- list()
 #file.names <- c()
 #for (i in 1:nrow(metadata.h)){
@@ -176,25 +180,34 @@ seurat.list.path <- paste0(path2project, 'analysis/seurat.norm.list.rds')
 #var_feat <- lapply(seurat.list, VariableFeatures)
 #var_fea_int <- Reduce(intersect, var_feat)
 
-cat('Merging seurat objects\n')
+#cat('Merging seurat objects\n')
 #merge.seu <- merge(x= seurat.list[[1]], y = seurat.list[2:length(seurat.list)])
 merge.rds <- paste0(path2project, '/analysis/panglaodb.merge.seu.rds')
 #saveRDS(merge.seu, merge.rds)
 
 
-cat('Processing merged seurat\n')
-merge.seu <- read_rds(merge.rds)
-merge.seu <- ScaleData(merge.seu, do.scale=TRUE)
-merge.seu <- FindVariableFeatures(merge.seu, 
-                                  selection.method = "vst", 
-                                  nfeatures = 1000, verbose = T)
-merge.seu <- RunPCA(merge.seu, verbose = FALSE)
-merge.seu <- RunUMAP(merge.seu, dims = 1:30, metric = 'cosine')
-merge.seu <- FindNeighbors(merge.seu, reduction = 'umap', dims = 1:2)
-merge.seu <- FindClusters(merge.seu, resolution = 0.05)
+#cat('Processing merged seurat\n')
+#merge.seu <- read_rds(merge.rds)
+#merge.seu <- ScaleData(merge.seu, do.scale=TRUE)
+#merge.seu <- FindVariableFeatures(merge.seu, 
+#                                  selection.method = "vst", 
+#                                  nfeatures = 1000, verbose = T)
+#merge.seu <- RunPCA(merge.seu, verbose = FALSE)
+#merge.seu <- RunUMAP(merge.seu, dims = 1:30, metric = 'cosine')
+#merge.seu <- FindNeighbors(merge.seu, reduction = 'umap', dims = 1:2)
+#merge.seu <- FindClusters(merge.seu, resolution = 0.05)
 merge.p.rds <- paste0(path2project, '/analysis/panglaodb.merge.seu.processed.rds')
-saveRDS(merge.seu, merge.p.rds)
-cat('Merged processed data saved to ', merge.p.rds, '\n')
+#saveRDS(merge.seu, merge.p.rds)
+#cat('Merged processed data saved to ', merge.p.rds, '\n')
+
+cat('Reading merged seurat file\n')
+merge.seu <- read_rds(merge.p.rds)
+cat('Adding abbreviations\n')
+abbs <- read.csv(paste0(path2project, '/analysis/panglaodb_tissue_abbs.csv'),
+                 stringsAsFactors = FALSE)
+abbs <- plyr::mapvalues(x = merge.seu$Tissue_origin,
+                        from = abbs$names, to = abbs$abbs)
+merge.seu$"abbs" <- abbs
 
 cat('Plotting figures\n')
 figures.pdf <- paste0(path2project, '/docs/figures.pdf')
@@ -202,6 +215,6 @@ pdf(figures.pdf)
 DimPlot(merge.seu, group.by = 'seurat_clusters', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'orig.ident', reduction = 'umap')
 DimPlot(merge.seu, group.by = 'SRA_accession', reduction = 'umap')
-DimPlot(merge.seu, group.by = 'Tissue_origin', reduction = 'umap')
+DimPlot(merge.seu, group.by = 'abbs', reduction = 'umap', label=TRUE) + NoLegend()
 FeaturePlot(merge.seu, features = 'ACE2-ENSG00000130234.10', reduction = 'umap')
 dev.off()
