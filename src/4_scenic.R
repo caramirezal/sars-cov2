@@ -3,13 +3,10 @@ library(SCENIC)
 
 ##################################################################
 ## data preprocessing
-maike <- read.csv('data/maike2020/nina_thimme_raw_counts.csv', 
-                   header = TRUE)
-r_names <- maike$X
-maike <- select(maike, -X)
-maike_mtx <- apply(maike, 2, as.numeric)
-rownames(maike_mtx) <- gsub('__chr.*', '', r_names) 
-rm(maike, r_names)
+tenoever <- read.table('data/tenOEver202/GSE147507_RawReadCounts.tsv', 
+                       nrows = 5, sep = '\t', header = TRUE)
+head(tenoever)
+read_lines('data/tenOEver202/GSE147507_RawReadCounts.tsv', n_max = 3)
 
 ##################################################################
 ## Dowloading human reference
