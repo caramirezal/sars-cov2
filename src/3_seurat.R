@@ -209,39 +209,82 @@ abbs <- plyr::mapvalues(x = merge.seu$Tissue_origin,
                         from = abbs$names, to = abbs$abbs)
 merge.seu$"abbs" <- abbs
 
-cat('Subseting interesting genes\n')
+#cat('Subseting interesting genes\n')
 interesting_genes <- readRDS(paste0(path2project, 
                                     '/analysis/interesting_genes.rds'))
 interesting_genes <- gsub('_', '-', interesting_genes)
-merge.seu.sub.mtx <- merge.seu@assays$RNA@counts[interesting_genes, ]
-merge.sub.seu <- CreateSeuratObject(
-      counts=merge.seu.sub.mtx,
-      project = 'sars-cov2', 
-      assay = 'RNA', 
-      min.cells = 0, 
-      min.features = 0
-)
-merge.sub.seu$'cell_type' <- merge.seu$abbs
-write_rds(merge.sub.seu,
-          paste0(path2project, 'analysis/merge.sub.seu.rds'))
+#merge.seu.sub.mtx <- merge.seu@assays$RNA@counts[interesting_genes, ]
+#merge.sub.seu <- CreateSeuratObject(
+#      counts=merge.seu.sub.mtx,
+#      project = 'sars-cov2', 
+#      assay = 'RNA', 
+#      min.cells = 0, 
+#      min.features = 0
+#)
+#merge.sub.seu$'cell_type' <- merge.seu$abbs
+#write_rds(merge.sub.seu,
+#          paste0(path2project, 'analysis/merge.sub.seu.rds'))
 
 #cat('Plotting figures\n')
-#figures.pdf <- paste0(path2project, '/docs/figures.pdf')
-#pdf(figures.pdf)
+#jpeg(paste0(path2project, '/docs/panglao_seurat_cluster.jpg'))
 #DimPlot(merge.seu, group.by = 'seurat_clusters', reduction = 'umap')
-#DimPlot(merge.seu, group.by = 'orig.ident', reduction = 'umap')
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_sraid.jpg'))
 #DimPlot(merge.seu, group.by = 'SRA_accession', reduction = 'umap')
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_cell_type.jpg'))
 #DimPlot(merge.seu, group.by = 'abbs', reduction = 'umap', label=TRUE) + NoLegend()
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_markers_ACE2.jpg'))
 #FeaturePlot(merge.seu, 
-#            features = c('ACE2-ENSG00000130234.10', 'TMPRSS2-ENSG00000184012.11',
-#                         'NEU1-ENSG00000204386.10', 'NPTX1-ENSG00000171246.5'), 
-#            reduction = 'umap')
+#            features = c('ACE2-ENSG00000130234.10'),
+#            reduction = 'umap') 
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_markers_TMPRSS2.jpg'))
+#FeaturePlot(merge.seu, 
+#            features = c('TMPRSS2-ENSG00000184012.11'),
+#                         reduction = 'umap') 
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_markers_NEU1.jpg'))
+#FeaturePlot(merge.seu, 
+#            features = c('NEU1-ENSG00000204386.10'), 
+#            reduction = 'umap') 
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_markers_NPTX1.jpg'))
+#FeaturePlot(merge.seu, 
+#            features = c('NPTX1-ENSG00000171246.5'), 
+#            reduction = 'umap') 
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_markers_BRD2.jpg'))
+#FeaturePlot(merge.seu, 
+#            features = c('BRD2-ENSG00000204256.12'), 
+#            reduction = 'umap') 
+#dev.off()
+jpeg(paste0(path2project, '/docs/panglao_markers_ATP1B1P1.jpg'))
+FeaturePlot(merge.seu, 
+            features = c('ATP1B1-ENSG00000143153.12'), 
+            reduction = 'umap') 
+dev.off()
+
+#interesting_genes <- gsub('_', '-', interesting_genes)
+for (i in interesting_genes){
+        gene.n <- gsub('-.*', '', i)
+        cat('Plotting to: ', paste0(path2project, '/docs/panglao_markers/', gene.n, '.jpg'), '\n')
+        jpeg(paste0(path2project, '/docs/panglao_markers/', gene.n, '.jpg'))
+         p <- FeaturePlot(merge.seu, features = i, reduction = 'umap')
+         plot(p)
+        dev.off()
+}
+#jpeg(paste0(path2project, '/docs/panglao_interactome_1.jpg'))
 #FeaturePlot(merge.seu, features = interesting_genes[1:4], reduction = 'umap', ncol=2)
+#jpeg(paste0(path2project, '/docs/panglao_interactome_2.jpg'))
 #FeaturePlot(merge.seu, features = interesting_genes[5:8], reduction = 'umap', ncol=2)
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_interactome_3.jpg'))
 #FeaturePlot(merge.seu, features = interesting_genes[9:12], reduction = 'umap', ncol=2)
-#FeaturePlot(merge.seu, features = interesting_genes[13:16], reduction = 'umap', ncol=2)
-#FeaturePlot(merge.seu, features = interesting_genes[17:20], reduction = 'umap', ncol=2)
-#FeaturePlot(merge.seu, features = interesting_genes[21:24], reduction = 'umap', ncol=2)
-#FeaturePlot(merge.seu, features = interesting_genes[25:28], reduction = 'umap', ncol=2)
-#FeaturePlot(merge.seu, features = interesting_genes[29:32], reduction = 'umap', ncol=2)
+#dev.off()
+#jpeg(paste0(path2project, '/docs/panglao_interactome_4.jpg'))
+#FeaturePlot(merge.seu, 
+#            features = interesting_genes[13:16], 
+#            reduction = 'umap', ncol=2)
 #dev.off()
