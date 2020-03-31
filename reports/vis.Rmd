@@ -5,16 +5,24 @@ date: "3/24/2020"
 output: html_document
 ---
 
+# Databases
+
 
 ```{r}
 library(Seurat)
 library(tidyverse)
 library(Matrix)
+
+
 ```
 
+## Kim et 2015
+
+ * Download data [here](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
+ 
 ```{r}
 kim <- read.table(
-        'data/kim2015/GSE69405_PROCESSED_GENE_TPM_ALL.txt',
+        '../data/kim2015/GSE69405_PROCESSED_GENE_TPM_ALL.txt',
         colClasses = 'character',
         header = TRUE
 )
@@ -25,12 +33,32 @@ rm(kim, gene_names)
 kim_seu <- CreateSeuratObject(
         counts = kim.mtx, 
         project = 'sars-cov2', 
-        min.cells = 5, 
-        min.features = 30, 
+        min.cells = 1, 
+        min.features = 300, 
         assay = 'RNA'
 )
-rm(kim.mtx)
+rm(kim)
+kim_seu <- NormalizeData(kim_seu) 
+kim_seu <- ScaleData(kim_seu)
+kim_seu <- FindVariableFeatures(kim_seu)
+kim_seu <- RunPCA(kim_seu, npcs = 30, verbose = F)
+kim_seu <- RunUMAP(kim_seu, 
+                   reduction = 'pca', 
+                   dims = 1:30, metric = 'cosine')
+kim_seu <- FindNeighbors(kim_seu, dims = 1:30, reduction = 'pca')
+kim_seu <- FindClusters(kim_seu, resolution = 0.1)
+cell_line <- gsub('_.*', '', colnames(kim_seu))
+kim_seu$'cell_type' <- cell_line
+DimPlot(kim_seu, reduction = 'umap', group.by = 'seurat_clusters')
+DimPlot(kim_seu, reduction = 'umap', group.by = 'cell_type')
+```
 
+
+## Loading Zilionis 2019.
+
+* Tumor infiltrated cells in lung cancer.
+
+```{r}
 zilionis <- readMM('../data/zillionis2019/GSE127465_human_counts_normalized_54773x41861.mtx')
 row_names <- read.table('../data/zillionis2019/human_cell_metadata_54773x25.tsv', 
                         header = TRUE, 
@@ -44,6 +72,8 @@ gene_names <- read_table('../data/zillionis2019/GSE127465_gene_names_human_41861
 colnames(zilionis) <- gene_names$X1
 rm(gene_names)
 zilionis <- t(zilionis)
+gene.sample <- sample(1:nrow(zilionis), 1000)
+samp.sample <- sample(1:ncol(zilionis), 1000)
 zilionis_seu <- CreateSeuratObject(
         counts = zilionis, 
         project = 'sars-cov2', 
@@ -54,5 +84,26 @@ zilionis_seu <- CreateSeuratObject(
 ```
 
 ```{r}
-
-```
+panglao.sub.seu <- read_rds('~/Downloads/merge.sub.seu.rds')
+panglao.sub.seu <- NormalizeData(panglao.sub.seu)
+panglao.sub.seu <- ScaleData(panglao.sub.seu)
+panglao.sub.seu <- FindVariableFeatures(panglao.sub.seu)
+panglao.sub.seu <- RunPCA(panglao.sub.seu, verbose = FALSE)
+panglao.sub.seu <- RunUMAP(panglao.sub.seu, 
+                           dims = 1:30, 
+                           metric = 'cosine')
+panglao.sub.seu <- FindNeighbors(panglao.sub.seu, 
+                                 reduction = 'umap', 
+                                 dims = 1:2)
+panglao.sub.seu <- FindClusters(panglao.sub.seu, 
+                                resolution = 0.05)
+DimPlot(panglao.sub.seu, group.by = 'seurat_clusters', 
+        reduction = 'umap')
+DimPlot(panglao.sub.seu, 
+        group.by = 'cell_type', 
+        reduction = 'umap')
+DoHeatmap(panglao.sub.seu, group.by = 'cell_type')
+ ```
+ 
+ 
+ 
