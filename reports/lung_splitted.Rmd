@@ -1,0 +1,395 @@
+---
+title: "SARS COVID-19 - Lung databases splitted"
+author: "Health Data Science Unit"
+date: "3/24/2020"
+output: 
+    html_document:
+            code_folding: hide
+---
+
+
+```{r include=FALSE}
+library(Seurat)
+library(ggplot2)
+library(tidyverse)
+library(scales)
+library(cowplot)
+
+knitr::opts_chunk$set(
+        warning = FALSE,
+        message = FALSE,
+        cache = TRUE,
+        cache.lazy = FALSE
+)
+
+path2project <- '/media/ag-cherrmann/cramirez/sars-cov2/'
+```
+
+```{r fun}
+seu_std_processing <- function(seurat_object) {
+        seurat_object <- NormalizeData(seurat_object)
+        seurat_object <- ScaleData(seurat_object)
+        seurat_object <- FindVariableFeatures(seurat_object,
+                             nfeatures = 1000)
+        return(seurat_object)
+}
+
+call_DimReduction <- function(seurat_object,
+                              nDims = 30){
+      seurat_processed <- RunPCA(seurat_object, 
+                              npcs = nDims, 
+                              verbose = FALSE)
+      seurat_processed <- RunUMAP(seurat_processed, 
+                               reduction = 'pca', 
+                               dims = 1:nDims, 
+                               metric = 'cosine')
+      return(seurat_processed)
+}
+
+call_FeaturePlot <- function(seurat_object, 
+             features = 'ACE2'){
+      umap_plot <- FeaturePlot(
+                         seurat_object,
+                         features = features,
+                         ncol = 4
+                   ) + 
+              theme(legend.position = "none")
+      return(umap_plot)
+}
+
+get_sign_scores <- function(seurat_object,
+                            gene_set){
+       gene.subset <- FetchData(seurat_object, gene_set)
+       signature.scores <- rowSums(gene.subset)
+       return(signature.scores)       
+}
+
+plot_dataset <- function(seurat_object){
+        p <- FeaturePlot(seurat_object, 
+                         reduction = 'umap', 
+                         features = c('ACE2', 'TMPRSS2', 
+                                      'transcriptome', 'interactome'),
+                         coord.fixed = TRUE,
+                         ncol = 4, 
+                         combine = FALSE,
+                         cols = c('yellow', 'red')) 
+        
+        for(i in 1:length(p)) {
+                p[[i]] <- p[[i]] + 
+                        NoLegend() + 
+                        NoAxes() + 
+                        panel_border(remove = TRUE)
+        }
+        
+        dataset_plot <- plot_grid(plotlist = p, 
+                                  ncol = 4, 
+                                  scale = 0.8, 
+                                  rel_widths = c(1,1,1,1)) 
+        return(dataset_plot)
+}
+```
+
+```{r genes_subset}
+## Read processed lung databases
+lung.seu <- readRDS(paste0(path2project,
+                    'analysis/seurat.lung.processed.rds'))
+## selecting interactome genes
+interactome <- read_lines(paste0(path2project,
+                          'data/interactome.tsv'),
+                          skip = 1)
+interesting_genes <- c(interactome,
+                       c("ACE2", "NPTX1", "NEU1", "TMPRSS2"))
+
+## transcriptome genes
+transcriptome <- read.table(paste0(path2project,
+                                   'data/blanco_melo_transcriptome.DEG.tsv'),
+                            header = TRUE)
+transcriptome <- transcriptome$GeneName
+```
+
+## Kim 2015
+
+```{r kim_umap_plot}
+kim2015 <- read_rds(
+     paste0(path2project, 
+            'analysis/seurat_files/lung/kim_2015.rds')
+)
+kim2015 <- call_DimReduction(kim2015)
+#plot(call_FeaturePlot(kim2015))
+```
+
+```{r eval=TRUE}
+kim2015$'interactome' <- get_sign_scores(kim2015, interactome)
+kim2015$'transcriptome' <- get_sign_scores(kim2015, transcriptome)
+#call_FeaturePlot(kim2015, 
+#                 features = c('ACE2', 'TMPRSS2', 'interactome', 'transcriptome'))
+```
+
+### Gene expression
+
+```{r fig.width=10}
+plot_dataset(kim2015)
+```
+
+### Normalized
+
+```{r kim_norm}
+gene.subset <- FetchData(kim2015, 
+                         vars = c('ACE2', 'TMPRSS2', 'interactome', 'transcriptome'))
+gene.subset.mod <- gene.subset
+for (i in 1:ncol(gene.subset.mod)){
+     quant <- ecdf(gene.subset.mod[ ,i])
+     gene.subset.mod[ ,i] <- quant(gene.subset.mod[ ,i])
+}
+colnames(gene.subset.mod) <- paste0('quantile_norm_',
+                                    colnames(gene.subset.mod))
+kim2015 <- AddMetaData(kim2015, gene.subset.mod)
+p <- FeaturePlot(kim2015, 
+                 reduction = 'umap', 
+                 features = c('quantile_norm_ACE2', 'quantile_norm_TMPRSS2', 
+                              'quantile_norm_transcriptome', 'quantile_norm_interactome'),
+                 coord.fixed = TRUE,
+                 ncol = 4, 
+                 combine = FALSE,
+                 cols = c('yellow', 'red')) 
+        
+for(i in 1:length(p)) {
+       p[[i]] <- p[[i]] +  
+                  NoLegend() +
+                  NoAxes() + 
+                  panel_border(remove = TRUE)
+}
+        
+dataset_plot <- plot_grid(plotlist = p, 
+                          ncol = 4, 
+                          scale = 0.8, 
+                          rel_widths = c(1,1,1,1)) 
+dataset_plot
+```
+
+
+
+## Zilionis 2019
+
+```{r zilionis_preprocessing}
+zilionis2019 <- read_rds(
+     paste0(path2project, 
+            'analysis/seurat_files/lung/zilionis_2019.rds')
+)
+zilionis2019 <- call_DimReduction(zilionis2019)
+zilionis2019$'interactome' <- get_sign_scores(zilionis2019, interactome)
+zilionis2019$'transcriptome' <- get_sign_scores(zilionis2019, transcriptome)
+```
+
+### Gene expression
+
+```{r zilionis_umap_plot, eval=TRUE}
+plot_dataset(zilionis2019)
+```
+
+
+### Normalized
+
+
+```{r zilionis_norm}
+gene.subset <- FetchData(zilionis2019, 
+                         vars = c('ACE2', 'TMPRSS2', 'interactome', 'transcriptome'))
+gene.subset.mod <- gene.subset
+for (i in 1:ncol(gene.subset.mod)){
+     quant <- ecdf(gene.subset.mod[ ,i])
+     gene.subset.mod[ ,i] <- quant(gene.subset.mod[ ,i])
+}
+colnames(gene.subset.mod) <- paste0('quantile_norm_',
+                                    colnames(gene.subset.mod))
+zilionis2019 <- AddMetaData(zilionis2019, gene.subset.mod)
+p <- FeaturePlot(zilionis2019, 
+                 reduction = 'umap', 
+                 features = c('quantile_norm_ACE2', 'quantile_norm_TMPRSS2', 
+                              'quantile_norm_transcriptome', 'quantile_norm_interactome'),
+                 coord.fixed = TRUE,
+                 ncol = 4, 
+                 combine = FALSE,
+                 cols = c('yellow', 'red')) 
+        
+for(i in 1:length(p)) {
+       p[[i]] <- p[[i]] +
+                  NoLegend() +  
+                  NoAxes() + 
+                  panel_border(remove = TRUE)
+}
+        
+dataset_plot <- plot_grid(plotlist = p, 
+                          ncol = 4, 
+                          scale = 0.8, 
+                          rel_widths = c(1,1,1,1)) 
+dataset_plot
+```
+
+
+
+
+
+
+## Stewart 2020
+
+```{r stewart_dim_red}
+stewart2020 <- read_rds(paste0(path2project, 
+                        'analysis/seurat_files/lung/stewart_2020.rds'))
+stewart2020 <- call_DimReduction(stewart2020)
+stewart2020$'interactome' <- get_sign_scores(stewart2020, interactome)
+stewart2020$'transcriptome' <- get_sign_scores(stewart2020, transcriptome)
+```
+
+```{r stewart_plot, fig.width=10}
+plot_dataset(stewart2020)
+```
+
+### Normalized
+
+
+```{r stewart2020_norm}
+gene.subset <- FetchData(stewart2020, 
+                         vars = c('ACE2', 'TMPRSS2', 'interactome', 'transcriptome'))
+gene.subset.mod <- gene.subset
+for (i in 1:ncol(gene.subset.mod)){
+     quant <- ecdf(gene.subset.mod[ ,i])
+     gene.subset.mod[ ,i] <- quant(gene.subset.mod[ ,i])
+}
+colnames(gene.subset.mod) <- paste0('quantile_norm_',
+                                    colnames(gene.subset.mod))
+stewart2020 <- AddMetaData(stewart2020, gene.subset.mod)
+p <- FeaturePlot(stewart2020, 
+                 reduction = 'umap', 
+                 features = c('quantile_norm_ACE2', 'quantile_norm_TMPRSS2', 
+                              'quantile_norm_transcriptome', 'quantile_norm_interactome'),
+                 coord.fixed = TRUE,
+                 ncol = 4, 
+                 combine = FALSE,
+                 cols = c('yellow', 'red')) 
+        
+for(i in 1:length(p)) {
+       p[[i]] <- p[[i]] +
+                  NoLegend() +  
+                  NoAxes() + 
+                  panel_border(remove = TRUE)
+}
+        
+dataset_plot <- plot_grid(plotlist = p, 
+                          ncol = 4, 
+                          scale = 0.8, 
+                          rel_widths = c(1,1,1,1)) 
+dataset_plot
+```
+
+
+
+
+
+```{r reading panglao}
+panglao <- readRDS(paste0(path2project, 
+                          'analysis/seurat_files/lung/panglaodb.rds'))
+
+```
+
+## McCauley 2018
+
+```{r mccauley_processing}
+mccauley_seu <- subset(panglao, Tissue_origin=='Lung progenitors')
+mccauley_seu <- seu_std_processing(mccauley_seu)
+mccauley_seu <- call_DimReduction(mccauley_seu)
+mccauley_seu$'interactome' <- get_sign_scores(mccauley_seu, interactome)
+mccauley_seu$'transcriptome' <- get_sign_scores(mccauley_seu, transcriptome)
+```
+
+```{r plot_mccauley, fig.width=10}
+plot_dataset(mccauley_seu)
+```
+
+
+## Habiel 2018
+
+```{r habiel_processing}
+habiel_seu <- subset(panglao, Tissue_origin=='Lung airway epithelial cells')
+habiel_seu <- seu_std_processing(habiel_seu)
+habiel_seu <- call_DimReduction(habiel_seu)
+habiel_seu$'interactome' <- get_sign_scores(habiel_seu, interactome)
+habiel_seu$'transcriptome' <- get_sign_scores(habiel_seu, transcriptome)
+```
+
+```{r plot_habiel, fig.width=10}
+plot_dataset(habiel_seu)
+```
+
+
+## Wang proximal airway 2018
+
+```{r wang_processing}
+wang_seu <- subset(panglao, Tissue_origin=='Lung proximal airway stromal cells')
+wang_seu <- seu_std_processing(wang_seu)
+wang_seu <- call_DimReduction(wang_seu)
+wang_seu$'interactome' <- get_sign_scores(wang_seu, interactome)
+wang_seu$'transcriptome' <- get_sign_scores(wang_seu, transcriptome)
+```
+
+```{r plot_wang, fig.width=10}
+plot_dataset(wang_seu)
+```
+
+
+
+## Wang distal alveolar 2018
+
+```{r wangd_processing}
+wangd_seu <- subset(panglao, Tissue_origin=='Lung distal alveolar stromal cells')
+wangd_seu <- seu_std_processing(wangd_seu)
+wangd_seu <- call_DimReduction(wangd_seu)
+wangd_seu$'interactome' <- get_sign_scores(wangd_seu, interactome)
+wangd_seu$'transcriptome' <- get_sign_scores(wangd_seu, transcriptome)
+```
+
+```{r plot_wangd, fig.width=10}
+plot_dataset(wangd_seu)
+```
+
+## Guo 2018
+
+```{r processing_guo}
+guo_seu <- readRDS(paste0(path2project, 'analysis/seurat_files/lung/guo2018.rds'))
+guo_seu <- call_DimReduction(guo_seu)
+guo_seu$'interactome' <- get_sign_scores(guo_seu, interactome)
+guo_seu$'transcriptome' <- get_sign_scores(guo_seu, transcriptome)
+```
+
+```{r plot_guo}
+plot_dataset(guo_seu)
+```
+
+
+## Laughney 2020
+
+```{r processing_laughney}
+laughney_seu <- readRDS(paste0(path2project, 'analysis/seurat_files/lung/laughney2020.rds'))
+laughney_seu <- call_DimReduction(laughney_seu)
+laughney_seu$'interactome' <- get_sign_scores(laughney_seu, interactome)
+laughney_seu$'transcriptome' <- get_sign_scores(laughney_seu, transcriptome)
+```
+
+```{r plot_laughney}
+plot_dataset(laughney_seu)
+```
+
+
+## Landscape 2020
+
+```{r processing_landscape}
+landscape_seu <- readRDS(paste0(path2project, 'analysis/seurat_files/lung/landscape.rds'))
+landscape_seu <- seu_std_processing(landscape_seu)
+landscape_seu <- call_DimReduction(landscape_seu)
+landscape_seu$'interactome' <- get_sign_scores(landscape_seu, interactome)
+landscape_seu$'transcriptome' <- get_sign_scores(landscape_seu, transcriptome)
+```
+
+```{r plot_landscape}
+plot_dataset(landscape_seu)
+```
+
